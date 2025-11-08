@@ -1,3 +1,4 @@
+from datetime import timedelta
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.db import transaction
@@ -9,11 +10,15 @@ from .serializers import (
     UserRegistrationSerializer, 
     UserLoginSerializer, 
     ForgotPasswordSerializer, 
-    ForgotPasswordOTPVerificationSerializer
+    ForgotPasswordOTPVerificationSerializer,
+
+    UserProfileSerializer,
 )
-from .tasks import send_otp_email
+from .tasks import send_otp_email, send_email
 from .services import generate_otp
 from .throttling import OTPVerificationThrottle, OTPResendThrottle, ForgotPasswordThrottle
+
+from task.models import Task
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -24,6 +29,9 @@ from rest_framework import status
 
 User = get_user_model()
 
+"""
+USER AUTHENTICATION
+"""
 class UserRegistrationView(APIView):
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
@@ -52,7 +60,8 @@ class UserRegistrationView(APIView):
 
                     return Response({
                         'message': 'OTP code was sent to your email, please confirm it to complete registration',
-                    }, status=status.HTTP_200.OK)
+                        'user_id': temp_reg.id,
+                    }, status=status.HTTP_200_OK)
 
             except Exception as e:
                 return Response({
@@ -112,7 +121,7 @@ class UserResendOTPView(APIView):
             send_otp_email.delay(temp_user.email, temp_user.otp_code)
             return Response({
                 'message': 'New OTP code was sent to your email',
-            }, status=status.HTTP_200.OK)
+            }, status=status.HTTP_200_OK)
         except TemporaryUser.DoesNotExist:
             return Response({
                 'message': 'User with this email does not exist',
@@ -298,6 +307,8 @@ class UserRegistrationOTPVerificationView(APIView):
 
                 refresh = RefreshToken.for_user(user)
 
+                send_email.delay(user.email, 'You have successfully registered in TaskSphere! ')
+
                 return Response({
                     'refresh_token':str(refresh),
                     'access_token':str(refresh.access_token),
@@ -343,6 +354,81 @@ class UserLoginOTPVerificationView(APIView):
                 
             
 
+"""
+USER INTERFACE
+"""
+class UserProfileView(APIView): #TODO: Add karma logic
+    def get(self, request):
+        user = request.user
+        total_completed_tasks = Task.objects.filter(
+            user=request.user,
+            is_completed=True
+        ).count()
+
+
+        """
+        Get amount of completed tasks on each day for
+        the past 7days
+        """
+        today = timezone.now().date()
+        seven_days_ago = today - timedelta(days=6)
+        
+        
+        # Get completed tasks in range
+        completed_tasks = Task.objects.filter(
+            user=user,
+            is_completed=True,
+            updated_at__date__gte=seven_days_ago,
+            updated_at__date__lte=today
+        )
+        
+        # Group by date and count
+        daily_stats = completed_tasks.annotate(
+            completion_date=TruncDate('updated_at')
+        ).values('completion_date').annotate(
+            count=Count('id')
+        ).order_by('completion_date')
+        
+        # Initialize all dates with 0
+        date_range = {}
+        current_date = seven_days_ago
+        while current_date <= today:
+            date_range[current_date] = 0
+            current_date += timedelta(days=1)
+        
+        # Fill in actual counts
+        for stat in daily_stats:
+            date_range[stat['completion_date']] = stat['count']
+        
+        # Convert to list
+        daily_completions = [
+            {
+                'date': str(date_key),
+                'count': count,
+                'day_name': date_key.strftime('%A')  # Monday, Tuesday, etc.
+            }
+            for date_key, count in sorted(date_range.items())
+        ]
+        
+        # Calculate totals
+        total_completed_for_the_past_7d = sum(item['count'] for item in daily_completions)
+
+        return Response({
+            'username':user.username,
+            'current_streak':user.current_streak,
+            'highest_streak':user.highest_streak if user.highest_streak != 0 else user.current_streak,
+            'start_date':str(seven_days_ago),
+            'end_date':str(today),
+            'total_amount_of_completed_tasks':total_completed_tasks,
+            'total_amount_of_completed_tasks_for_the_past_7d':total_completed_for_the_past_7d,
+            'amount_of_tasks_completed_on_each_day_for_the_past_7d':daily_completions,
+
+        })
+
+
+
+
+        
 
 
 

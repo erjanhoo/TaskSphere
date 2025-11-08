@@ -1,19 +1,33 @@
 from celery import shared_task
+from datetime import timedelta
+
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils import timezone
-from datetime import timedelta
+
+from .models import TemporaryUser
 
 
 @shared_task
 def send_otp_email(user_email,otp_code):
     send_mail(
-        subject='Code',
-        message=f'Your OTP code is {otp_code}',
+        subject='Welcome to TaskSphere',
+        message=f'Your OTP code is {otp_code}. If you did not send this request, please ignore this email.',
         from_email=settings.DEFAULT_FROM_EMAIL,
         recipient_list=[user_email],
         fail_silently=False,
     )
+
+@shared_task
+def send_email(user_email, message):
+    send_mail(
+        subject='Welcome to TaskSphere',
+        message=f'{message}',
+        from_email=settings.DEFAULT_FROM_EMAIL,
+        recipient_list=[user_email],
+        fail_silently=False,
+    )
+
 
 
 @shared_task
@@ -23,7 +37,7 @@ def cleanup_expired_temporary_users():
     This prevents accumulation of abandoned registration attempts.
     Runs periodically via Celery Beat.
     """
-    from .models import TemporaryUser
+
     
     expiry_time = timezone.now() - timedelta(hours=1)
     deleted_count = TemporaryUser.objects.filter(

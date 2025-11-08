@@ -3,6 +3,9 @@ from rest_framework import serializers
 
 User = get_user_model()
 
+"""
+USER AUTHENTICATION
+"""
 class UserRegistrationSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -78,4 +81,13 @@ class ForgotPasswordOTPVerificationSerializer(serializers.Serializer):
         return value
 
 
+
+"""
+USER INTERFACE
+"""
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'registered_at', 'current_streak')
     

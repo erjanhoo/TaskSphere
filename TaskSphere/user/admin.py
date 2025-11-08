@@ -1,3 +1,6 @@
 from django.contrib import admin
+from .models import MyUser, TemporaryUser
 
-# Register your models here.
+admin.site.register(MyUser)
+admin.site.register(TemporaryUser)
+

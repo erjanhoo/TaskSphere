@@ -1,14 +1,23 @@
-from rest_framework import response
+from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
+from rest_framework import status
 
 
 from django_filters.rest_framework import DjangoFilterBackend
 
 
-from .serializers import CreateTaskSerializer, TasksListSerializer, TaskDetailSerializer
-from .models import Task
+from .serializers import (
+    CreateTaskSerializer,
+    TasksListSerializer,
+    TaskDetailSerializer,
+    CategorySerializer,
+    TagSerializer
+    )
+from .models import Category, Tag, Task, SubTask
 from .filters import TaskFilter
+
+from user.services import award_karma_to_user
 
 
 """
@@ -16,13 +25,15 @@ Task CRUD Views
 """
 class CreateTaskView(generics.CreateAPIView):
     serializer_class = CreateTaskSerializer
-    queryset = Task
+    queryset = Task.objects.all()
     filter_backends = [DjangoFilterBackend]
     filterset_class = TaskFilter
     
     
 class ListTasksView(generics.ListAPIView):
-    queryset = Task.objects.filter(is_completed=False)
+    queryset = Task.objects.filter(is_completed=False,
+                                   parent_recurring_task__isnull=True,
+                                   is_recurring=False)
     serializer_class = TasksListSerializer
 
 
@@ -36,6 +47,38 @@ class UpdateTaskView(generics.UpdateAPIView):
     serializer_class = CreateTaskSerializer
 
 
+class ToggleTaskCompletion(APIView):
+
+    def patch(self, request, pk):
+        try:
+            task = Task.objects.get(id=pk, user=request.user)
+        except Task.DoesNotExist:
+            return Response({'error':'Task not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        task.is_completed = not task.is_completed
+        task.save()
+
+        if task.is_completed:
+            karma_points = self.calculate_karma_for_task(task=task)
+            award_karma_to_user(request.user, karma_points, 'Task Completed')
+
+
+        return Response({
+            'message': f'Task is {"completed" if task.is_completed else "reopened"}'
+        })
+    
+    def calculate_karma_for_task(self, task):\
+        
+        karma_map = {
+            'low': 5,
+            'medium': 10,
+            'important': 15,
+            'very_important': 20,
+            'extremely_important': 25
+        }
+        return karma_map.get(task.priority, 10)
+
+
 class DeleteTaskView(generics.DestroyAPIView):
     """
     Delete a task by ID.
@@ -45,5 +88,148 @@ class DeleteTaskView(generics.DestroyAPIView):
     serializer_class = TaskDetailSerializer  # Serializer required but not used for deletion
 
 
+class CalendarTasksView(generics.ListAPIView):
+    serializer_class = TasksListSerializer
 
+    def get_queryset(self):
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+
+        return Task.objects.filter(
+            user=self.request.user,
+            due_date__gte=start_date,
+            due_date__lte=end_date,
+            is_recurring=False
+        ).order_by('due_date')
+
+
+"""
+Subtasks CRUD Views
+"""
+
+class SubtaskToggleView(APIView):
+    def patch(self, request, pk):
+        try:
+            subtask = SubTask.objects.get(id=pk)
+        except SubTask.DoesNotExist:
+            return Response({'error':'Subtask not found'}, status=404)
+        
+        if subtask.parent_task.user != request.user:
+            return Response({'error':'Not authorized'}, status=403)
+        
+        subtask.is_completed = not subtask.is_completed
+        subtask.save()
+
+        if subtask.is_completed:
+            award_karma_to_user(user=subtask.parent_task.user, amount=5, reason='subtask completed')
+
+        if subtask.parent_task.check_all_subtasks_completion() :
+            award_karma_to_user(user=subtask.parent_task.user, amount=50, reason=f'All subtasks for {subtask.parent_task} has been completed')
+            return Response({
+                'id': subtask.id,
+                'title': subtask.title,
+                'is_completed': subtask.is_completed,
+                'message': 'Subtask updated successfully'
+            })
+"""
+Tags & Category CRUD Views
+"""
+
+class CategoryListView(generics.ListAPIView):
+    """
+    List all categories for the authenticated user.
+    """
+    serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
+    
+class CategoryCreateView(generics.CreateAPIView):
+    """
+    Create a new category for the authenticated user.
+    """
+    serializer_class = CategorySerializer
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+
+class CategoryDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve details of a specific category by ID for the authenticated user.
+    """
+    serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
+    
+class CategoryUpdateView(generics.UpdateAPIView):
+    """
+    Update a category by ID for the authenticated user.
+    """
+    serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
+    
+class CategoryDeleteView(generics.DestroyAPIView):
+    """
+    Delete a category by ID for the authenticated user.
+    """
+    serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Category.objects.filter(owner=user)
+    
+class TagDeleteView(generics.DestroyAPIView):
+    """
+    Delete a tag by ID for the authenticated user.
+    """
+    serializer_class = TagSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Tag.objects.filter(owner=user)
+    
+class TagUpdateView(generics.UpdateAPIView):
+    """
+    Update a tag by ID for the authenticated user.
+    """
+    serializer_class = TagSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Tag.objects.filter(owner=user)
+
+class TagDetailView(generics.RetrieveAPIView):
+    """
+    Retrieve details of a specific tag by ID for the authenticated user.
+    """
+    serializer_class = TagSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Tag.objects.filter(owner=user)
+
+class TagCreateView(generics.CreateAPIView):
+    """
+    Create a new tag for the authenticated user.
+    """
+    serializer_class = TagSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user)
+    
+class TagListView(generics.ListAPIView):
+    """
+    List all tags for the authenticated user.
+    """
+    serializer_class = TagSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return Tag.objects.filter(owner=user)
 

@@ -23,12 +23,14 @@ class MyUserManager(BaseUserManager):
         return self.get(**{self.model.USERNAME_FIELD: email})
 
 
-
 class MyUser(AbstractBaseUser):
     username = models.CharField(max_length=100, unique=True)
     email = models.EmailField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
     registered_at = models.DateTimeField(auto_now_add=True)
+    current_streak = models.PositiveSmallIntegerField(default=0)
+    highest_streak = models.PositiveSmallIntegerField(default=0)
+    karma = models.SmallIntegerField(default=0)
     otp_code = models.CharField(max_length=6, blank=True, null=True)
     otp_created_at = models.DateTimeField(blank=True, null=True)
     forgot_password_otp = models.CharField(max_length=6, blank=True, null=True)
@@ -39,7 +41,7 @@ class MyUser(AbstractBaseUser):
     is_active = models.BooleanField(default=True)
     is_2fa_enabled = models.BooleanField(default=False)
 
-    objects = MyUserManager()  # Don't forget to add the manager!
+    objects = MyUserManager() 
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
@@ -56,10 +58,43 @@ class MyUser(AbstractBaseUser):
 
 
 class TemporaryUser(models.Model):
-    username = models.CharField(max_length=100, unique=True)
-    email = models.EmailField(max_length=100, unique=True)
+    username = models.CharField(max_length=100)
+    email = models.EmailField(max_length=100)
     password = models.CharField(max_length=100)
     registered_at = models.DateTimeField(auto_now_add=True)
     otp_code = models.CharField(max_length=6)
     otp_created_at = models.DateTimeField(blank=True, null=True)
 
+
+
+
+class Badges(models.Model):
+
+    LEVELS = [
+        ('beginner', 'Beginner'),
+        ('novice', 'Novice'),
+        ('intermediate', 'Intermediate'),
+        ('professional', 'Professional'),
+        ('expert', 'Expert'),
+        ('master', 'Master'),
+        ('grand_master', 'Grand Master'),
+        ('enlightened', 'Enlightened')
+    ]
+
+    name = models.CharField(choices=LEVELS, max_length=123)
+    icon = models.ImageField(upload_to='badges_icons/', blank=True, null=True)
+
+    karma_min = models.PositiveSmallIntegerField(default=0)
+    karma_max = models.PositiveSmallIntegerField(default=0)
+
+
+class UserBadge(models.Model):
+    user = models.ForeignKey(MyUser, on_delete=models.CASCADE, null=True, blank=True)
+    badge = models.ForeignKey(Badges, on_delete=models.CASCADE)
+    awarded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'badge')
+
+    def __str__(self):
+        return f'{self.user.username} - {self.badge.name}'
