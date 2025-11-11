@@ -194,22 +194,20 @@ def calculate_user_streak():
             user.current_streak += 1
             user.save()
 
-            award_karma_to_user(user=user, amount=20, reason='')
+            award_karma_to_user(user=user, amount=20, reason='Daily streak maintained')
 
             if user.current_streak % 7 == 0:
-                award_karma_to_user(user=user,amount=350, reason='7 days streak')
+                award_karma_to_user(user=user, amount=350, reason='7 days streak bonus')
 
             if user.current_streak % 30 == 0:
-                award_karma_to_user(user=user, amount=1000, reason='30 days streak')
-
+                award_karma_to_user(user=user, amount=1000, reason='30 days streak bonus')
 
         else:
+            # User missed a day - update highest streak if needed, then reset
             if user.current_streak > user.highest_streak:
                 user.highest_streak = user.current_streak
-                user.current_streak = 0
-                user.save()
-            else:
-                user.current_streak = 0
-                user.save()
+            user.current_streak = 0
+            user.save()
+
 
     

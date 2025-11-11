@@ -3,8 +3,11 @@ from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.contrib.auth import authenticate
+from django.core.cache import cache
+from django.db.models import Count
+from django.db.models.functions import TruncDate
 
-from .models import TemporaryUser
+from .models import TemporaryUser, UserBadge, Badges, KarmaTransaction
 from .serializers import (
     UserOTPVerificationSerializer, 
     UserRegistrationSerializer, 
@@ -303,6 +306,12 @@ class UserRegistrationOTPVerificationView(APIView):
                 )
                 user.set_password(temp_reg.password)
                 user.save()
+                
+                # Initialize user with beginner badge
+                beginner_badge = Badges.objects.filter(name='beginner').first()
+                if beginner_badge:
+                    UserBadge.objects.create(user=user, badge=beginner_badge)
+                
                 temp_reg.delete()
 
                 refresh = RefreshToken.for_user(user)
@@ -357,8 +366,17 @@ class UserLoginOTPVerificationView(APIView):
 """
 USER INTERFACE
 """
-class UserProfileView(APIView): #TODO: Add karma logic
+class UserProfileView(APIView):
+    permission_classes = [IsAuthenticated]  # Add authentication requirement
+    
     def get(self, request):
+        # Use user ID instead of username for cache key (more reliable)
+        cache_key = f'profile_info_user_{request.user.id}'
+        cache_data = cache.get(cache_key)
+
+        if cache_data:
+            return Response(cache_data, status=status.HTTP_200_OK)
+
         user = request.user
         total_completed_tasks = Task.objects.filter(
             user=request.user,
@@ -409,21 +427,213 @@ class UserProfileView(APIView): #TODO: Add karma logic
             }
             for date_key, count in sorted(date_range.items())
         ]
+
+        # Get user's current badge level based on karma
+        current_badge_level = Badges.objects.filter(
+            karma_min__lte=user.karma,
+            karma_max__gte=user.karma
+        ).first()
+        
+        # Get all user badges (earned achievements)
+        all_earned_badges = UserBadge.objects.filter(user=user).select_related('badge').order_by('-awarded_at')
         
         # Calculate totals
         total_completed_for_the_past_7d = sum(item['count'] for item in daily_completions)
 
-        return Response({
-            'username':user.username,
-            'current_streak':user.current_streak,
-            'highest_streak':user.highest_streak if user.highest_streak != 0 else user.current_streak,
-            'start_date':str(seven_days_ago),
-            'end_date':str(today),
-            'total_amount_of_completed_tasks':total_completed_tasks,
-            'total_amount_of_completed_tasks_for_the_past_7d':total_completed_for_the_past_7d,
-            'amount_of_tasks_completed_on_each_day_for_the_past_7d':daily_completions,
 
-        })
+        data = {
+            'username': user.username,
+            'karma': user.karma,
+            'current_badge_level': {
+                'name': current_badge_level.name if current_badge_level else 'No Badge',
+                'karma_min': current_badge_level.karma_min if current_badge_level else 0,
+                'karma_max': current_badge_level.karma_max if current_badge_level else 0,
+                'progress_percentage': round(((user.karma - current_badge_level.karma_min) / (current_badge_level.karma_max - current_badge_level.karma_min)) * 100, 2) if current_badge_level and current_badge_level.karma_max > current_badge_level.karma_min else 100,
+                'karma_to_next_level': max(0, current_badge_level.karma_max + 1 - user.karma) if current_badge_level else 0,
+            } if current_badge_level else None,
+            'earned_badges': [
+                {
+                    'name': ub.badge.name,
+                    'awarded_at': ub.awarded_at,
+                    'karma_range': f'{ub.badge.karma_min}-{ub.badge.karma_max}',
+                } for ub in all_earned_badges
+            ],
+            'current_streak': user.current_streak,
+            'highest_streak': user.highest_streak if user.highest_streak != 0 else user.current_streak,
+            'start_date': str(seven_days_ago),
+            'end_date': str(today),
+            'total_amount_of_completed_tasks': total_completed_tasks,
+            'total_amount_of_completed_tasks_for_the_past_7d': total_completed_for_the_past_7d,
+            'amount_of_tasks_completed_on_each_day_for_the_past_7d': daily_completions,
+
+        }
+
+        cache.set(cache_key, data, timeout=60*5)
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class UserBadgesView(APIView):
+    """View all badges the user has earned"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user_badges = UserBadge.objects.filter(user=request.user).select_related('badge').order_by('-awarded_at')
+        
+        badges_data = [
+            {
+                'id': ub.id,
+                'name': ub.badge.name,
+                'karma_min': ub.badge.karma_min,
+                'karma_max': ub.badge.karma_max,
+                'awarded_at': ub.awarded_at,
+            }
+            for ub in user_badges
+        ]
+        
+        return Response({
+            'total_badges': user_badges.count(),
+            'badges': badges_data,
+        }, status=status.HTTP_200_OK)
+
+
+class AllBadgesView(APIView):
+    """View all available badges in the system"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        all_badges = Badges.objects.all().order_by('karma_min')
+        user_badge_ids = UserBadge.objects.filter(user=request.user).values_list('badge_id', flat=True)
+        
+        # Find current badge level based on user's karma
+        user_karma = request.user.karma
+        current_badge = Badges.objects.filter(
+            karma_min__lte=user_karma,
+            karma_max__gte=user_karma
+        ).first()
+        
+        badges_data = [
+            {
+                'id': badge.id,
+                'name': badge.name,
+                'karma_min': badge.karma_min,
+                'karma_max': badge.karma_max,
+                'earned': badge.id in user_badge_ids,
+                'is_current_level': badge.id == current_badge.id if current_badge else False,
+                'karma_needed': max(0, badge.karma_min - user_karma) if user_karma < badge.karma_min else 0,
+            }
+            for badge in all_badges
+        ]
+        
+        return Response({
+            'total_available_badges': all_badges.count(),
+            'badges': badges_data,
+            'user_karma': user_karma,
+            'current_badge': {
+                'name': current_badge.name,
+                'karma_min': current_badge.karma_min,
+                'karma_max': current_badge.karma_max,
+                'progress': {
+                    'current': user_karma,
+                    'min': current_badge.karma_min,
+                    'max': current_badge.karma_max,
+                    'percentage': round(((user_karma - current_badge.karma_min) / (current_badge.karma_max - current_badge.karma_min)) * 100, 2) if current_badge.karma_max > current_badge.karma_min else 100,
+                    'karma_to_next_level': max(0, current_badge.karma_max + 1 - user_karma)
+                }
+            } if current_badge else None,
+        }, status=status.HTTP_200_OK)
+
+
+
+class LeaderboardView(APIView):
+    """View top users by karma"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        limit = int(request.query_params.get('limit', 10))
+        
+        top_users = User.objects.filter(is_active=True).order_by('-karma')[:limit]
+        
+        leaderboard_data = []
+        for idx, user in enumerate(top_users, start=1):
+            # Get current badge level based on karma, not earned badges
+            current_badge_level = Badges.objects.filter(
+                karma_min__lte=user.karma,
+                karma_max__gte=user.karma
+            ).first()
+            
+            leaderboard_data.append({
+                'rank': idx,
+                'username': user.username,
+                'karma': user.karma,
+                'current_streak': user.current_streak,
+                'highest_streak': user.highest_streak,
+                'current_badge_level': current_badge_level.name if current_badge_level else 'No Badge',
+            })
+        
+        # Find current user's rank
+        current_user_rank = User.objects.filter(is_active=True, karma__gt=request.user.karma).count() + 1
+        
+        return Response({
+            'leaderboard': leaderboard_data,
+            'your_rank': current_user_rank,
+            'your_karma': request.user.karma,
+        }, status=status.HTTP_200_OK)
+
+
+class KarmaHistoryView(APIView):
+    """View karma transaction history for the current user"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        from .models import KarmaTransaction
+        from datetime import datetime, timedelta
+        from django.db.models import Sum
+        
+        # Get filter parameters
+        days = int(request.query_params.get('days', 30))  # Last 30 days by default
+        limit = int(request.query_params.get('limit', 50))  # Max 50 transactions
+        
+        # Get transactions
+        transactions = KarmaTransaction.objects.filter(
+            user=request.user
+        ).order_by('-created_at')[:limit]
+        
+        # Calculate statistics
+        today = timezone.now().date()
+        start_date = today - timedelta(days=days)
+        
+        recent_transactions = KarmaTransaction.objects.filter(
+            user=request.user,
+            created_at__date__gte=start_date
+        )
+        
+        total_earned = recent_transactions.filter(amount__gt=0).aggregate(Sum('amount'))['amount__sum'] or 0
+        total_lost = abs(recent_transactions.filter(amount__lt=0).aggregate(Sum('amount'))['amount__sum'] or 0)
+        
+        transactions_data = [
+            {
+                'id': t.id,
+                'amount': t.amount,
+                'reason': t.reason,
+                'created_at': t.created_at,
+                'type': 'earned' if t.amount > 0 else 'lost'
+            }
+            for t in transactions
+        ]
+        
+        return Response({
+            'current_karma': request.user.karma,
+            'statistics': {
+                'period_days': days,
+                'total_earned': total_earned,
+                'total_lost': total_lost,
+                'net_change': total_earned - total_lost,
+            },
+            'transactions': transactions_data,
+            'total_transactions': KarmaTransaction.objects.filter(user=request.user).count(),
+        }, status=status.HTTP_200_OK)
+
 
 
 

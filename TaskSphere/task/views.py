@@ -5,7 +5,7 @@ from rest_framework import status
 
 
 from django_filters.rest_framework import DjangoFilterBackend
-
+from django.core.cache import cache
 
 from .serializers import (
     CreateTaskSerializer,
@@ -31,10 +31,20 @@ class CreateTaskView(generics.CreateAPIView):
     
     
 class ListTasksView(generics.ListAPIView):
-    queryset = Task.objects.filter(is_completed=False,
-                                   parent_recurring_task__isnull=True,
-                                   is_recurring=False)
     serializer_class = TasksListSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_class = TaskFilter
+    
+    def get_queryset(self):
+        """
+        Return tasks for the current user.
+        Excludes recurring task instances by default unless filtered.
+        """
+        return Task.objects.filter(
+            user=self.request.user,
+            parent_recurring_task__isnull=True
+        ).select_related('category', 'recurrence_rule').prefetch_related('tags', 'subtasks')
+
 
 
 class TaskDetailView(generics.RetrieveAPIView):
@@ -55,19 +65,30 @@ class ToggleTaskCompletion(APIView):
         except Task.DoesNotExist:
             return Response({'error':'Task not found'}, status=status.HTTP_404_NOT_FOUND)
         
+        # Store previous state to determine if completing or uncompleting
+        was_completed = task.is_completed
         task.is_completed = not task.is_completed
         task.save()
 
+        karma_points = self.calculate_karma_for_task(task=task)
+        
         if task.is_completed:
-            karma_points = self.calculate_karma_for_task(task=task)
-            award_karma_to_user(request.user, karma_points, 'Task Completed')
+            # Task was just completed - award karma
+            award_karma_to_user(request.user, karma_points, f'Task completed: {task.title}')
+        else:
+            # Task was uncompleted - deduct karma
+            award_karma_to_user(request.user, -karma_points, f'Task uncompleted: {task.title}')
 
+        # Invalidate profile cache
+        cache_key = f'profile_info_user_{request.user.id}'
+        cache.delete(cache_key)
 
         return Response({
-            'message': f'Task is {"completed" if task.is_completed else "reopened"}'
+            'message': f'Task is {"completed" if task.is_completed else "reopened"}',
+            'karma_change': karma_points if task.is_completed else -karma_points
         })
     
-    def calculate_karma_for_task(self, task):\
+    def calculate_karma_for_task(self, task):
         
         karma_map = {
             'low': 5,
@@ -123,7 +144,7 @@ class SubtaskToggleView(APIView):
         if subtask.is_completed:
             award_karma_to_user(user=subtask.parent_task.user, amount=5, reason='subtask completed')
 
-        if subtask.parent_task.check_all_subtasks_completion() :
+        if subtask.parent_task.check_all_subtasks_completion():
             award_karma_to_user(user=subtask.parent_task.user, amount=50, reason=f'All subtasks for {subtask.parent_task} has been completed')
             return Response({
                 'id': subtask.id,

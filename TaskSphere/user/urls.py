@@ -8,6 +8,11 @@ from .views import (
     UserForgotPasswordView,
     UserForgotPasswordOTPVerificationView,
     UserLogoutView,
+    UserProfileView,
+    UserBadgesView,
+    AllBadgesView,
+    LeaderboardView,
+    KarmaHistoryView,
 )
 
 urlpatterns = [
@@ -26,4 +31,11 @@ urlpatterns = [
     
     # Logout
     path('logout/', UserLogoutView.as_view(), name='user-logout'),
+    
+    # Profile & Gamification
+    path('profile/', UserProfileView.as_view(), name='user-profile'),
+    path('badges/', UserBadgesView.as_view(), name='user-badges'),
+    path('badges/all/', AllBadgesView.as_view(), name='all-badges'),
+    path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
+    path('karma/history/', KarmaHistoryView.as_view(), name='karma-history'),
 ]

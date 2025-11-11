@@ -98,3 +98,16 @@ class UserBadge(models.Model):
 
     def __str__(self):
         return f'{self.user.username} - {self.badge.name}'
+
+
+class KarmaTransaction(models.Model):
+    user = models.ForeignKey(MyUser, on_delete=models.CASCADE, related_name='karma_transactions')
+    amount = models.IntegerField()  # Can be positive or negative
+    reason = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f'{self.user.username} - {self.amount} karma - {self.reason}'

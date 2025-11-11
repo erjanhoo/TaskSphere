@@ -11,7 +11,7 @@ class RecurrenceRuleSerializer(serializers.ModelSerializer):
 
 class CreateSubTaskSerializer(serializers.ModelSerializer):
     class Meta:
-        model = subTask
+        model = SubTask
         fields = ('title',)
 
     def validate_title(self, value):
@@ -24,7 +24,7 @@ class CreateSubTaskSerializer(serializers.ModelSerializer):
 
 class SubtaskSerializer(serializers.ModelSerializer):
     class Meta:
-        model = subTask
+        model = SubTask
         fields = ('__all__')
 
 
@@ -90,7 +90,7 @@ class CreateTaskSerializer(serializers.ModelSerializer):
 
         # Create multiple subtasks
         for subtask_data in subtasks_data:
-            subTask.objects.create(
+            SubTask.objects.create(
                 title=subtask_data['title'],
                 parent_task=task,
                 is_completed=False
