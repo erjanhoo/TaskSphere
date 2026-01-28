@@ -2,6 +2,8 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from dateutil.relativedelta import relativedelta
 
+from user.services import award_karma_to_user
+
 User = get_user_model()
 
 class Category(models.Model):
@@ -79,11 +81,6 @@ class Task(models.Model):
              related_name='instances'
              )
 
-
-        def __str__(self):
-             return self.title
-        
-
         def calculate_subtasks_completion_percentage(self):
             total_subtasks = self.subtasks.count()
             
@@ -94,6 +91,22 @@ class Task(models.Model):
             
             return round((completed_subtasks / total_subtasks) * 100)
 
+        def check_all_subtasks_completion(self):
+            total_subtasks = self.subtasks.count()
+
+            if total_subtasks == 0:
+                return False
+            
+            completed_subtasks = self.subtasks.filter(is_completed = True).count()
+
+            if completed_subtasks == total_subtasks:
+                return True
+            return False
+
+        def __str__(self):
+             return self.title
+        
+
 class SubTask(models.Model):
      title = models.CharField(max_length=20)
      parent_task = models.ForeignKey(Task, related_name='subtasks', on_delete=models.CASCADE)
@@ -102,6 +115,8 @@ class SubTask(models.Model):
      def __str__(self):
           return f'{self.parent_task.title} - {self.title}'
      
+
+
 
 
 

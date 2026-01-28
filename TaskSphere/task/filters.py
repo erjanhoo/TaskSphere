@@ -50,7 +50,7 @@ class TaskFilter(django_filters.FilterSet):
         if not value:
             return queryset
         
-        # Search: starts with OR contains the value
+        # starts with OR contains the value
         return queryset.filter(
             Q(title__istartswith=value) | Q(title__icontains=value)
         ).distinct()
