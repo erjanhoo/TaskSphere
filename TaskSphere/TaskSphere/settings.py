@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'channels',
     'django_filters',
+    'corsheaders',
 
     #LOCAL APPS
     'task',
@@ -56,6 +57,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    ''
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
