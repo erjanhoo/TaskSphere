@@ -12,22 +12,22 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'password', 'email')
         extra_kwargs = {'password': {'write_only': True}}
 
-        def validate_password(self, value):
-            if len(value) < 8:
-                raise serializers.ValidationError('Too short password')
-            return value
+    def validate_password(self, value):
+        if len(value) < 8:
+            raise serializers.ValidationError('Too short password')
+        return value
 
-        def validate_email(self, value):
-            if User.objects.filter(email=value).exists():
-                raise serializers.ValidationError('Email already exists')
-            return value
+    def validate_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('Email already exists')
+        return value
 
-        def create(self, validated_data):
-            user = User(**validated_data)
-            user.set_password(validated_data['password'])
-            user.save()
+    def create(self, validated_data):
+        user = User(**validated_data)
+        user.set_password(validated_data['password'])
+        user.save()
 
-            return user
+        return user
         
 
 class UserLoginSerializer(serializers.Serializer):

@@ -37,41 +37,48 @@ USER AUTHENTICATION
 """
 class UserRegistrationView(APIView):
     def post(self, request):
-        serializer = UserRegistrationSerializer(data=request.data)
-        if serializer.is_valid():
-            try:
-                if User.objects.filter(email=serializer.validated_data['email']).exists():
+        try:
+            serializer = UserRegistrationSerializer(data=request.data)
+            if serializer.is_valid():
+                try:
+                    if User.objects.filter(email=serializer.validated_data['email']).exists():
+                        return Response({
+                            'message': 'Email already exists',
+                        }, status=status.HTTP_400_BAD_REQUEST)
+
+                    if TemporaryUser.objects.filter(email=serializer.validated_data['email']).exists():
+                        TemporaryUser.objects.filter(email=serializer.validated_data['email']).delete()
+
+                    otp = generate_otp()
+
+                    with transaction.atomic():
+                        temp_reg = TemporaryUser.objects.create(
+                            email=serializer.validated_data['email'],
+                            username=serializer.validated_data['username'],
+                            password=serializer.validated_data['password'],
+                            otp_code=otp,
+                            otp_created_at=timezone.now()
+                        )
+                        temp_reg.save()
+                        transaction.on_commit(lambda: send_otp_email.delay(temp_reg.email, temp_reg.otp_code))
+
+                        return Response({
+                            'message': 'OTP code was sent to your email, please confirm it to complete registration',
+                            'user_id': temp_reg.id,
+                        }, status=status.HTTP_200_OK)
+
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
                     return Response({
-                        'message': 'Email already exists',
-                    }, status=status.HTTP_400_BAD_REQUEST)
-
-                if TemporaryUser.objects.filter(email=serializer.validated_data['email']).exists():
-                    TemporaryUser.objects.filter(email=serializer.validated_data['email']).delete()
-
-                otp = generate_otp()
-
-                with transaction.atomic():
-                    temp_reg = TemporaryUser.objects.create(
-                        email=serializer.validated_data['email'],
-                        username=serializer.validated_data['username'],
-                        password=serializer.validated_data['password'],
-                        otp_code=otp,
-                        otp_created_at=timezone.now()
-                    )
-                    temp_reg.save()
-                    transaction.on_commit(lambda: send_otp_email.delay(temp_reg.email, temp_reg.otp_code))
-
-                    return Response({
-                        'message': 'OTP code was sent to your email, please confirm it to complete registration',
-                        'user_id': temp_reg.id,
-                    }, status=status.HTTP_200_OK)
-
-            except Exception as e:
-                return Response({
-                    'message': str(e),
-                })
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                        'message': str(e),
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            else:
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as outer_e:
+            import traceback
+            traceback.print_exc()
+            return Response({'message': f"Unexpected error: {str(outer_e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
