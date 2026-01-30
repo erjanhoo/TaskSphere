@@ -84,8 +84,8 @@ class Badges(models.Model):
     name = models.CharField(choices=LEVELS, max_length=123)
     icon = models.ImageField(upload_to='badges_icons/', blank=True, null=True)
 
-    karma_min = models.PositiveSmallIntegerField(default=0)
-    karma_max = models.PositiveSmallIntegerField(default=0)
+    karma_min = models.PositiveIntegerField(default=0)
+    karma_max = models.PositiveIntegerField(default=0)
 
 
 class UserBadge(models.Model):
