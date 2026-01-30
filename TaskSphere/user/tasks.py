@@ -10,23 +10,31 @@ from .models import TemporaryUser
 
 @shared_task
 def send_otp_email(user_email,otp_code):
-    send_mail(
-        subject='Welcome to TaskSphere',
-        message=f'Your OTP code is {otp_code}. If you did not send this request, please ignore this email.',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user_email],
-        fail_silently=False,
-    )
+    try:
+        send_mail(
+            subject='Welcome to TaskSphere',
+            message=f'Your OTP code is {otp_code}. If you did not send this request, please ignore this email.',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+    except Exception:
+        # Avoid crashing API requests if email sending fails
+        return False
 
 @shared_task
 def send_email(user_email, message):
-    send_mail(
-        subject='Welcome to TaskSphere',
-        message=f'{message}',
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        recipient_list=[user_email],
-        fail_silently=False,
-    )
+    try:
+        send_mail(
+            subject='Welcome to TaskSphere',
+            message=f'{message}',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user_email],
+            fail_silently=False,
+        )
+    except Exception:
+        # Avoid crashing API requests if email sending fails
+        return False
 
 
 
