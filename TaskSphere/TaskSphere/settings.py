@@ -140,12 +140,16 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 
 
-# === EMAIL SETTINGS (Temporary Hardcode) ===
+# === EMAIL SETTINGS ===
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587             # Число, не строка!
-EMAIL_USE_TLS = True         # Boolean, не строка!
-# Эти два оставь через getenv, чтобы не светить пароль в GitHub
+
+# ВНИМАНИЕ: Пишем числами и булевыми значениями ПРЯМО ЗДЕСЬ
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_USE_SSL = False  # Важно: для 587 SSL должен быть False, TLS True
+
+# Пароль и логин берем из переменных (это безопасно)
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD') # Убедись, что тут нет пробелов в Railway!
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
