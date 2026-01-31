@@ -175,7 +175,7 @@ class UserLoginView(APIView):
                 'refresh_token': str(refresh),
                 'access': str(refresh.access_token),
                 'user_id': user.id,
-                'user_email'
+                'user_email': user.email,
                 'message': 'You have successfully logged in'
             }, status=status.HTTP_200_OK)
         
