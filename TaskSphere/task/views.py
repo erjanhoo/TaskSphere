@@ -2,7 +2,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework import status
-
+from rest_framework.permissions import IsAuthenticated
 
 from django_filters.rest_framework import DjangoFilterBackend
 from django.core.cache import cache
@@ -24,6 +24,7 @@ from user.services import award_karma_to_user
 Task CRUD Views
 """
 class CreateTaskView(generics.CreateAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = CreateTaskSerializer
     queryset = Task.objects.all()
     filter_backends = [DjangoFilterBackend]
@@ -31,6 +32,7 @@ class CreateTaskView(generics.CreateAPIView):
     
     
 class ListTasksView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = TasksListSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = TaskFilter
@@ -48,16 +50,19 @@ class ListTasksView(generics.ListAPIView):
 
 
 class TaskDetailView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
     queryset = Task.objects.all()
     serializer_class = TaskDetailSerializer
 
 
 class UpdateTaskView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
     queryset = Task.objects.all()
     serializer_class = CreateTaskSerializer
 
 
 class ToggleTaskCompletion(APIView):
+    permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
         try:
@@ -105,11 +110,13 @@ class DeleteTaskView(generics.DestroyAPIView):
     Delete a task by ID.
     Automatically handles deletion of related RecurrenceRule due to CASCADE.
     """
+    permission_classes = [IsAuthenticated]
     queryset = Task.objects.all()
     serializer_class = TaskDetailSerializer  # Serializer required but not used for deletion
 
 
 class CalendarTasksView(generics.ListAPIView):
+    permission_classes = [IsAuthenticated]
     serializer_class = TasksListSerializer
 
     def get_queryset(self):
@@ -129,6 +136,8 @@ Subtasks CRUD Views
 """
 
 class SubtaskToggleView(APIView):
+    permission_classes = [IsAuthenticated]
+    
     def patch(self, request, pk):
         try:
             subtask = SubTask.objects.get(id=pk)
@@ -160,6 +169,7 @@ class CategoryListView(generics.ListAPIView):
     """
     List all categories for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -170,6 +180,7 @@ class CategoryCreateView(generics.CreateAPIView):
     """
     Create a new category for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
 
     def perform_create(self, serializer):
@@ -179,6 +190,7 @@ class CategoryDetailView(generics.RetrieveAPIView):
     """
     Retrieve details of a specific category by ID for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -189,6 +201,7 @@ class CategoryUpdateView(generics.UpdateAPIView):
     """
     Update a category by ID for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -199,6 +212,7 @@ class CategoryDeleteView(generics.DestroyAPIView):
     """
     Delete a category by ID for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = CategorySerializer
 
     def get_queryset(self):
@@ -209,6 +223,7 @@ class TagDeleteView(generics.DestroyAPIView):
     """
     Delete a tag by ID for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = TagSerializer
 
     def get_queryset(self):
@@ -219,6 +234,7 @@ class TagUpdateView(generics.UpdateAPIView):
     """
     Update a tag by ID for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = TagSerializer
 
     def get_queryset(self):
@@ -229,6 +245,7 @@ class TagDetailView(generics.RetrieveAPIView):
     """
     Retrieve details of a specific tag by ID for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = TagSerializer
 
     def get_queryset(self):
@@ -239,6 +256,7 @@ class TagCreateView(generics.CreateAPIView):
     """
     Create a new tag for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = TagSerializer
 
     def perform_create(self, serializer):
@@ -248,6 +266,7 @@ class TagListView(generics.ListAPIView):
     """
     List all tags for the authenticated user.
     """
+    permission_classes = [IsAuthenticated]
     serializer_class = TagSerializer
 
     def get_queryset(self):

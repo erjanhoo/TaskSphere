@@ -120,10 +120,16 @@ class CreateTaskSerializer(serializers.ModelSerializer):
 
 
 class TasksListSerializer(serializers.ModelSerializer):
+
+    subtasks_completion_percentage = serializers.SerializerMethodField()
+
     class Meta:
-        subtasks_completion_percentage = serializers.SerializerMethodField()
         model = Task
         fields = ('id', 'title', 'priority','due_date', 'category', 'tags', 'created_at', 'updated_at', 'subtasks_completion_percentage')
+
+    # 2. Добавляем метод получения значения (копируем логику из DetailSerializer)
+    def get_subtasks_completion_percentage(self, obj):
+        return obj.calculate_subtasks_completion_percentage()
 
 
 class TaskDetailSerializer(serializers.ModelSerializer):
@@ -145,6 +151,7 @@ class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = '__all__'
+        read_only_fields = ['owner']
 
     def validate_name(self, value):
         if not value or len(value) < 3:
@@ -156,6 +163,7 @@ class CategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = Category
         fields = '__all__'
+        read_only_fields = ['owner']
 
     def validate_name(self, value):
         if not value or len(value) < 3:
