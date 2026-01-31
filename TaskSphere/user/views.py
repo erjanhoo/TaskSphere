@@ -112,6 +112,7 @@ class UserRegistrationView(APIView):
                 return Response({
                     'message': 'Registration successful',
                     'user_id': user.id,
+                    'user_email': user.email,
                     'refresh_token': str(refresh),
                     'access_token': str(refresh.access_token),
                 }, status=status.HTTP_201_CREATED)
@@ -174,6 +175,7 @@ class UserLoginView(APIView):
                 'refresh_token': str(refresh),
                 'access': str(refresh.access_token),
                 'user_id': user.id,
+                'user_email'
                 'message': 'You have successfully logged in'
             }, status=status.HTTP_200_OK)
         
@@ -322,165 +324,165 @@ class UserLogoutView(APIView):
 """
 OTP Verifications
 """
-class UserForgotPasswordOTPVerificationView(APIView):
-    """
-    This view handles BOTH OTP verification AND password change in ONE request.
+# class UserForgotPasswordOTPVerificationView(APIView):
+#     """
+#     This view handles BOTH OTP verification AND password change in ONE request.
     
-    Frontend sends from the "Reset Password" page:
-    - user_id (received from UserForgotPasswordView response)
-    - otp_code (from email)
-    - new_password (user types)
-    - confirm_password (user types)
+#     Frontend sends from the "Reset Password" page:
+#     - user_id (received from UserForgotPasswordView response)
+#     - otp_code (from email)
+#     - new_password (user types)
+#     - confirm_password (user types)
     
-    Backend logic:
-    1. Verify OTP is correct
-    2. Check OTP hasn't expired
-    3. If OTP valid → change password
-    4. If OTP invalid → return error, password NOT changed
-    """
-    throttle_classes = [OTPVerificationThrottle]
+#     Backend logic:
+#     1. Verify OTP is correct
+#     2. Check OTP hasn't expired
+#     3. If OTP valid → change password
+#     4. If OTP invalid → return error, password NOT changed
+#     """
+#     throttle_classes = [OTPVerificationThrottle]
     
-    def post(self, request):
-        serializer = ForgotPasswordOTPVerificationSerializer(data=request.data)
+#     def post(self, request):
+#         serializer = ForgotPasswordOTPVerificationSerializer(data=request.data)
         
-        if serializer.is_valid(raise_exception=True):
-            try:
-                user = User.objects.get(id=serializer.validated_data['user_id'])
-            except User.DoesNotExist:
-                return Response({
-                    'message': 'User not found'
-                }, status=status.HTTP_404_NOT_FOUND)
+#         if serializer.is_valid(raise_exception=True):
+#             try:
+#                 user = User.objects.get(id=serializer.validated_data['user_id'])
+#             except User.DoesNotExist:
+#                 return Response({
+#                     'message': 'User not found'
+#                 }, status=status.HTTP_404_NOT_FOUND)
             
-            # Check if user has a password reset OTP
-            if not user.forgot_password_otp:
-                return Response({
-                    'message': 'No password reset request found. Please request a new one.'
-                }, status=status.HTTP_400_BAD_REQUEST)
+#             # Check if user has a password reset OTP
+#             if not user.forgot_password_otp:
+#                 return Response({
+#                     'message': 'No password reset request found. Please request a new one.'
+#                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Verify OTP matches
-            if user.forgot_password_otp != serializer.validated_data['otp_code']:
-                return Response({
-                    'message': 'Incorrect OTP code'
-                }, status=status.HTTP_400_BAD_REQUEST)
+#             # Verify OTP matches
+#             if user.forgot_password_otp != serializer.validated_data['otp_code']:
+#                 return Response({
+#                     'message': 'Incorrect OTP code'
+#                 }, status=status.HTTP_400_BAD_REQUEST)
             
-            # Check OTP expiry (5 minutes)
-            if user.forgot_password_otp_created_at:
-                otp_expiry_minutes = 5
-                time_elapsed = (timezone.now() - user.forgot_password_otp_created_at).total_seconds()
+#             # Check OTP expiry (5 minutes)
+#             if user.forgot_password_otp_created_at:
+#                 otp_expiry_minutes = 5
+#                 time_elapsed = (timezone.now() - user.forgot_password_otp_created_at).total_seconds()
                 
-                if time_elapsed > (otp_expiry_minutes * 60):
-                    # Clear expired OTP
-                    user.forgot_password_otp = None
-                    user.forgot_password_otp_created_at = None
-                    user.save()
+#                 if time_elapsed > (otp_expiry_minutes * 60):
+#                     # Clear expired OTP
+#                     user.forgot_password_otp = None
+#                     user.forgot_password_otp_created_at = None
+#                     user.save()
                     
-                    return Response({
-                        'message': 'OTP has expired. Please request a new password reset.'
-                    }, status=status.HTTP_400_BAD_REQUEST)
+#                     return Response({
+#                         'message': 'OTP has expired. Please request a new password reset.'
+#                     }, status=status.HTTP_400_BAD_REQUEST)
             
-            # OTP is valid! Now change the password
-            user.set_password(serializer.validated_data['new_password'])
+#             # OTP is valid! Now change the password
+#             user.set_password(serializer.validated_data['new_password'])
             
-            # Clear the OTP fields after successful password change
-            user.forgot_password_otp = None
-            user.forgot_password_otp_created_at = None
-            user.save()
+#             # Clear the OTP fields after successful password change
+#             user.forgot_password_otp = None
+#             user.forgot_password_otp_created_at = None
+#             user.save()
             
-            return Response({
-                'message': 'Password has been successfully reset. You can now login with your new password.'
-            }, status=status.HTTP_200_OK)
+#             return Response({
+#                 'message': 'Password has been successfully reset. You can now login with your new password.'
+#             }, status=status.HTTP_200_OK)
         
-        return Response({
-            'message': 'Invalid information provided'
-        }, status=status.HTTP_400_BAD_REQUEST)
+#         return Response({
+#             'message': 'Invalid information provided'
+#         }, status=status.HTTP_400_BAD_REQUEST)
 
 
 
-class UserRegistrationOTPVerificationView(APIView):
+# class UserRegistrationOTPVerificationView(APIView):
 
-    throttle_classes = [OTPVerificationThrottle]
+#     throttle_classes = [OTPVerificationThrottle]
 
-    def post(self, request):
-        serializer = UserOTPVerificationSerializer(data=request.data)
+#     def post(self, request):
+#         serializer = UserOTPVerificationSerializer(data=request.data)
 
-        if serializer.is_valid(raise_exception=True):
-            temp_reg_id = serializer.validated_data['user_id']
-            entered_otp_code = serializer.validated_data['otp_code']
+#         if serializer.is_valid(raise_exception=True):
+#             temp_reg_id = serializer.validated_data['user_id']
+#             entered_otp_code = serializer.validated_data['otp_code']
 
-            try:
-                temp_reg = TemporaryUser.objects.get(id=temp_reg_id)
-            except TemporaryUser.DoesNotExist:
-                return Response('Registration request not found', status=status.HTTP_400_BAD_REQUEST)
+#             try:
+#                 temp_reg = TemporaryUser.objects.get(id=temp_reg_id)
+#             except TemporaryUser.DoesNotExist:
+#                 return Response('Registration request not found', status=status.HTTP_400_BAD_REQUEST)
             
-            otp_expiry = 5
-            temp_reg_otp_created_at = temp_reg.otp_created_at
-            current_time = timezone.now()
+#             otp_expiry = 5
+#             temp_reg_otp_created_at = temp_reg.otp_created_at
+#             current_time = timezone.now()
 
-            if (current_time - temp_reg_otp_created_at).total_seconds() > otp_expiry * 60:
-                return Response('OTP code has expired', status=status.HTTP_400_BAD_REQUEST)
+#             if (current_time - temp_reg_otp_created_at).total_seconds() > otp_expiry * 60:
+#                 return Response('OTP code has expired', status=status.HTTP_400_BAD_REQUEST)
 
-            if temp_reg.otp_code == entered_otp_code:
-                user = User(
-                    username=temp_reg.username,
-                    email=temp_reg.email,
+#             if temp_reg.otp_code == entered_otp_code:
+#                 user = User(
+#                     username=temp_reg.username,
+#                     email=temp_reg.email,
                     
-                )
-                user.set_password(temp_reg.password)
-                user.save()
+#                 )
+#                 user.set_password(temp_reg.password)
+#                 user.save()
                 
-                # Initialize user with beginner badge
-                beginner_badge = Badges.objects.filter(name='beginner').first()
-                if beginner_badge:
-                    UserBadge.objects.create(user=user, badge=beginner_badge)
+#                 # Initialize user with beginner badge
+#                 beginner_badge = Badges.objects.filter(name='beginner').first()
+#                 if beginner_badge:
+#                     UserBadge.objects.create(user=user, badge=beginner_badge)
                 
-                temp_reg.delete()
+#                 temp_reg.delete()
 
-                refresh = RefreshToken.for_user(user)
+#                 refresh = RefreshToken.for_user(user)
 
-                send_email.delay(user.email, 'You have successfully registered in TaskSphere! ')
+#                 send_email.delay(user.email, 'You have successfully registered in TaskSphere! ')
 
-                return Response({
-                    'refresh_token':str(refresh),
-                    'access_token':str(refresh.access_token),
-                    'user_id':user.id,
-                    'message':'Successfully registered'
-                },status=status.HTTP_201_CREATED)
+#                 return Response({
+#                     'refresh_token':str(refresh),
+#                     'access_token':str(refresh.access_token),
+#                     'user_id':user.id,
+#                     'message':'Successfully registered'
+#                 },status=status.HTTP_201_CREATED)
 
-            else:
-                return Response('Incorrect OTP code', status=status.HTTP_400_BAD_REQUEST)
+#             else:
+#                 return Response('Incorrect OTP code', status=status.HTTP_400_BAD_REQUEST)
 
 
 
-class UserLoginOTPVerificationView(APIView):
-    throttle_classes = [OTPVerificationThrottle]
+# class UserLoginOTPVerificationView(APIView):
+#     throttle_classes = [OTPVerificationThrottle]
     
-    def post(self, request):
-        serializer = UserOTPVerificationSerializer(data=request.data)
+#     def post(self, request):
+#         serializer = UserOTPVerificationSerializer(data=request.data)
         
-        if serializer.is_valid(raise_exception=True):
-            try:
-                user = User.objects.get(id=serializer.validated_data['user_id'])
-            except User.DoesNotExist:
-                return Response('User not found', status=status.HTTP_404_NOT_FOUND)
+#         if serializer.is_valid(raise_exception=True):
+#             try:
+#                 user = User.objects.get(id=serializer.validated_data['user_id'])
+#             except User.DoesNotExist:
+#                 return Response('User not found', status=status.HTTP_404_NOT_FOUND)
             
-            if not user.otp_code == serializer.validated_data['otp_code']:
-                return Response('Incorrect OTP, try again', status=status.HTTP_400_BAD_REQUEST)
+#             if not user.otp_code == serializer.validated_data['otp_code']:
+#                 return Response('Incorrect OTP, try again', status=status.HTTP_400_BAD_REQUEST)
             
-            user_otp_created_at = user.otp_created_at
-            otp_expiry = 2
+#             user_otp_created_at = user.otp_created_at
+#             otp_expiry = 2
 
-            if (timezone.now() - user_otp_created_at).total_seconds() > (otp_expiry * 60):
-                return Response('OTP has expired, try again', status=status.HTTP_400_BAD_REQUEST)
+#             if (timezone.now() - user_otp_created_at).total_seconds() > (otp_expiry * 60):
+#                 return Response('OTP has expired, try again', status=status.HTTP_400_BAD_REQUEST)
             
-            refresh = RefreshToken.for_user(user=user)
+#             refresh = RefreshToken.for_user(user=user)
 
-            return Response({
-                'refresh_token':str(refresh),
-                'access_token':str(refresh.access_token),
-                'user_id':user.id,
-                'message':'Welcome Back!'
-            },status=status.HTTP_200_OK)
-        return Response('Invalid information provided')
+#             return Response({
+#                 'refresh_token':str(refresh),
+#                 'access_token':str(refresh.access_token),
+#                 'user_id':user.id,
+#                 'message':'Welcome Back!'
+#             },status=status.HTTP_200_OK)
+#         return Response('Invalid information provided')
                 
             
 
