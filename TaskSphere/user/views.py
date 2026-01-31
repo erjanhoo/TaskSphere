@@ -35,52 +35,124 @@ User = get_user_model()
 """
 USER AUTHENTICATION
 """
+# class UserRegistrationView(APIView):
+#     def post(self, request):
+#         try:
+#             serializer = UserRegistrationSerializer(data=request.data)
+#             if serializer.is_valid():
+#                 try:
+#                     if User.objects.filter(email=serializer.validated_data['email']).exists():
+#                         return Response({
+#                             'message': 'Email already exists',
+#                         }, status=status.HTTP_400_BAD_REQUEST)
+
+#                     if TemporaryUser.objects.filter(email=serializer.validated_data['email']).exists():
+#                         TemporaryUser.objects.filter(email=serializer.validated_data['email']).delete()
+
+#                     otp = generate_otp()
+
+#                     with transaction.atomic():
+#                         temp_reg = TemporaryUser.objects.create(
+#                             email=serializer.validated_data['email'],
+#                             username=serializer.validated_data['username'],
+#                             password=serializer.validated_data['password'],
+#                             otp_code=otp,
+#                             otp_created_at=timezone.now()
+#                         )
+#                         temp_reg.save()
+#                         transaction.on_commit(lambda: send_otp_email.delay(temp_reg.email, temp_reg.otp_code))
+
+#                         return Response({
+#                             'message': 'OTP code was sent to your email, please confirm it to complete registration',
+#                             'user_id': temp_reg.id,
+#                         }, status=status.HTTP_200_OK)
+
+#                 except Exception as e:
+#                     import traceback
+#                     traceback.print_exc()
+#                     return Response({
+#                         'message': str(e),
+#                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+#             else:
+#                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#         except Exception as outer_e:
+#             import traceback
+#             traceback.print_exc()
+#             return Response({'message': f"Unexpected error: {str(outer_e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 class UserRegistrationView(APIView):
     def post(self, request):
         try:
             serializer = UserRegistrationSerializer(data=request.data)
             if serializer.is_valid():
-                try:
-                    if User.objects.filter(email=serializer.validated_data['email']).exists():
-                        return Response({
-                            'message': 'Email already exists',
-                        }, status=status.HTTP_400_BAD_REQUEST)
-
-                    if TemporaryUser.objects.filter(email=serializer.validated_data['email']).exists():
-                        TemporaryUser.objects.filter(email=serializer.validated_data['email']).delete()
-
-                    otp = generate_otp()
-
-                    with transaction.atomic():
-                        temp_reg = TemporaryUser.objects.create(
-                            email=serializer.validated_data['email'],
-                            username=serializer.validated_data['username'],
-                            password=serializer.validated_data['password'],
-                            otp_code=otp,
-                            otp_created_at=timezone.now()
-                        )
-                        temp_reg.save()
-                        transaction.on_commit(lambda: send_otp_email.delay(temp_reg.email, temp_reg.otp_code))
-
-                        return Response({
-                            'message': 'OTP code was sent to your email, please confirm it to complete registration',
-                            'user_id': temp_reg.id,
-                        }, status=status.HTTP_200_OK)
-
-                except Exception as e:
-                    import traceback
-                    traceback.print_exc()
+                # Проверка на уникальность email
+                if User.objects.filter(email=serializer.validated_data['email']).exists():
                     return Response({
-                        'message': str(e),
-                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                        'message': 'Email already exists',
+                    }, status=status.HTTP_400_BAD_REQUEST)
+
+                # 1. СРАЗУ создаем пользователя (без TemporaryUser)
+                user = User.objects.create(
+                    username=serializer.validated_data['username'],
+                    email=serializer.validated_data['email']
+                )
+                user.set_password(serializer.validated_data['password'])
+                
+                # Выдаем бейдж новичка (твоя геймификация)
+                beginner_badge = Badges.objects.filter(name='beginner').first()
+                if beginner_badge:
+                    UserBadge.objects.create(user=user, badge=beginner_badge)
+                
+                user.save()
+
+                # 2. Генерируем токены сразу
+                refresh = RefreshToken.for_user(user)
+
+                # 3. Возвращаем токены фронтенду
+                return Response({
+                    'message': 'Registration successful',
+                    'user_id': user.id,
+                    'refresh_token': str(refresh),
+                    'access_token': str(refresh.access_token),
+                }, status=status.HTTP_201_CREATED)
+
             else:
                 return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as outer_e:
+
+        except Exception as e:
             import traceback
             traceback.print_exc()
-            return Response({'message': f"Unexpected error: {str(outer_e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'message': f"Error: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
 
 
+# class UserLoginView(APIView):
+#     def post(self, request):
+#         serializer = UserLoginSerializer(data=request.data)
+#         if serializer.is_valid(raise_exception=True):
+#             user = authenticate(
+#                 request=request,
+#                 email=serializer.validated_data['email'],
+#                 password=serializer.validated_data['password']
+#             )
+#             if user.is_2fa_enabled:
+#                 otp_code = generate_otp()
+#                 user.otp_code = otp_code
+#                 user.otp_created = timezone.now()
+#                 user.save()
+
+#                 send_otp_email.delay(user.email, otp_code)
+#                 return Response({
+#                     'user_id':user.id
+#                 }, status=status.HTTP_200_OK)
+#             else:
+#                 refresh = RefreshToken.for_user(user=user)
+                
+#                 return Response({
+#                     'refresh_token':str(refresh),
+#                     'access':str(refresh.access_token),
+#                     'message':'You have successfully logged it'
+#                 })
 
 class UserLoginView(APIView):
     def post(self, request):
@@ -91,24 +163,19 @@ class UserLoginView(APIView):
                 email=serializer.validated_data['email'],
                 password=serializer.validated_data['password']
             )
-            if user.is_2fa_enabled:
-                otp_code = generate_otp()
-                user.otp_code = otp_code
-                user.otp_created = timezone.now()
-                user.save()
 
-                send_otp_email.delay(user.email, otp_code)
-                return Response({
-                    'user_id':user.id
-                }, status=status.HTTP_200_OK)
-            else:
-                refresh = RefreshToken.for_user(user=user)
-                
-                return Response({
-                    'refresh_token':str(refresh),
-                    'access':str(refresh.access_token),
-                    'message':'You have successfully logged it'
-                })
+            if not user:
+                return Response({'message': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+
+            # Просто отдаем токены, без проверок 2FA
+            refresh = RefreshToken.for_user(user=user)
+            
+            return Response({
+                'refresh_token': str(refresh),
+                'access': str(refresh.access_token),
+                'user_id': user.id,
+                'message': 'You have successfully logged in'
+            }, status=status.HTTP_200_OK)
         
 
 
@@ -144,37 +211,84 @@ class UserResendOTPView(APIView):
 
 
 
-class UserForgotPasswordView(APIView):
-    throttle_classes = [ForgotPasswordThrottle]
+# class UserForgotPasswordView(APIView):
+#     throttle_classes = [ForgotPasswordThrottle]
 
-    def post(self, request):
-        serializer = ForgotPasswordSerializer(data=request.data)
-        if serializer.is_valid(raise_exception=True):
-            try:
-                # Use email to find user, not user_id (user doesn't know their ID)
-                user = User.objects.get(email=serializer.validated_data['email'])
-            except User.DoesNotExist:
-                # Don't reveal if email exists or not (security best practice)
-                return Response({
-                    'message': 'If this email exists, a password reset code has been sent'
-                }, status=status.HTTP_200_OK)
+#     def post(self, request):
+#         serializer = ForgotPasswordSerializer(data=request.data)
+#         if serializer.is_valid(raise_exception=True):
+#             try:
+#                 # Use email to find user, not user_id (user doesn't know their ID)
+#                 user = User.objects.get(email=serializer.validated_data['email'])
+#             except User.DoesNotExist:
+#                 # Don't reveal if email exists or not (security best practice)
+#                 return Response({
+#                     'message': 'If this email exists, a password reset code has been sent'
+#                 }, status=status.HTTP_200_OK)
             
-            forgot_password_otp = generate_otp()
-            user.forgot_password_otp = forgot_password_otp
-            user.forgot_password_otp_created_at = timezone.now()  # Track when OTP was created
+#             forgot_password_otp = generate_otp()
+#             user.forgot_password_otp = forgot_password_otp
+#             user.forgot_password_otp_created_at = timezone.now()  # Track when OTP was created
+#             user.save()
+
+#             send_otp_email.delay(user.email, forgot_password_otp)
+            
+#             # Return user_id so frontend can send it back with OTP
+#             return Response({
+#                 'message': 'Password reset code has been sent to your email',
+#                 'user_id': user.id  # Frontend needs this for the next request
+#             }, status=status.HTTP_200_OK)
+        
+#         return Response({
+#             'message': 'Invalid information provided'
+#         }, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserForgotPasswordView(APIView):
+    """
+    SIMPLE RESET (No Email/OTP).
+    WARNING: For development/school project only. Unsafe for production.
+    """
+    def post(self, request):
+        email = request.data.get('email')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+
+        # 1. Простая валидация данных
+        if not email or not new_password or not confirm_password:
+            return Response({
+                'message': 'Please provide email, new password and confirmation'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({
+                'message': 'Passwords do not match'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            # 2. Ищем пользователя по email
+            user = User.objects.get(email=email)
+            
+            # 3. Меняем пароль сразу же
+            user.set_password(new_password)
             user.save()
 
-            send_otp_email.delay(user.email, forgot_password_otp)
-            
-            # Return user_id so frontend can send it back with OTP
+            # Опционально: можно сразу вернуть токены, чтобы залогинить его
+            # refresh = RefreshToken.for_user(user)
+
             return Response({
-                'message': 'Password reset code has been sent to your email',
-                'user_id': user.id  # Frontend needs this for the next request
+                'message': 'Password has been successfully changed.'
             }, status=status.HTTP_200_OK)
-        
-        return Response({
-            'message': 'Invalid information provided'
-        }, status=status.HTTP_400_BAD_REQUEST)
+
+        except User.DoesNotExist:
+            # Даже если юзера нет, для безопасности лучше не говорить об этом явно,
+            # но для школы можно вернуть 404, чтобы ты понимал ошибку.
+            return Response({
+                'message': 'User with this email does not exist'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({'message': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
 
 
