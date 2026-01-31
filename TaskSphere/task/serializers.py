@@ -125,7 +125,7 @@ class TasksListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Task
-        fields = ('id', 'title', 'priority','due_date', 'category', 'tags', 'created_at', 'updated_at', 'subtasks_completion_percentage')
+        fields = ('id', 'title', 'priority','due_date', 'category', 'tags', 'created_at', 'updated_at', 'subtasks_completion_percentage', 'is_completed', 'description')
 
     # 2. Добавляем метод получения значения (копируем логику из DetailSerializer)
     def get_subtasks_completion_percentage(self, obj):
