@@ -144,18 +144,17 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # ... (начало файла)
 
-# === EMAIL SETTINGS (SSL FIX) ===
+# === EMAIL SETTINGS (FINAL ATTEMPT: 587 TLS) ===
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 
-# Используем порт 465 и SSL
-EMAIL_PORT = 465
-EMAIL_USE_TLS = False  # Важно: Выключаем TLS
-EMAIL_USE_SSL = True   # Важно: Включаем SSL
+# Жестко ставим 587 и TLS
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True   # <--- TLS ВКЛЮЧЕН
+EMAIL_USE_SSL = False  # <--- SSL ВЫКЛЮЧЕН (Это критично для 587!)
 
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
-# --- DEBUG PRINT (Увидим это в логах при запуске!) ---
-print(f"📧 EMAIL DEBUG: Connecting to {EMAIL_HOST}:{EMAIL_PORT} (SSL={EMAIL_USE_SSL})")
+print(f"📧 EMAIL DEBUG: Connecting to {EMAIL_HOST}:{EMAIL_PORT} (TLS={EMAIL_USE_TLS})")
