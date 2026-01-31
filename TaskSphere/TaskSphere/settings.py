@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'anymail',
     
     # Third-party
     'rest_framework',
@@ -140,21 +141,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 
 
-# ... (начало файла)
+#EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+ANYMAIL = {
+    "RESEND_API_KEY": os.getenv('RESEND_API_KEY'),
+}
 
-# ... (начало файла)
-
-# === EMAIL SETTINGS (FINAL ATTEMPT: 587 TLS) ===
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-
-# Жестко ставим 587 и TLS
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True   # <--- TLS ВКЛЮЧЕН
-EMAIL_USE_SSL = False  # <--- SSL ВЫКЛЮЧЕН (Это критично для 587!)
-
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-
-print(f"📧 EMAIL DEBUG: Connecting to {EMAIL_HOST}:{EMAIL_PORT} (TLS={EMAIL_USE_TLS})")
+DEFAULT_FROM_EMAIL = "onboarding@resend.dev"  # Для теста используй этот email
