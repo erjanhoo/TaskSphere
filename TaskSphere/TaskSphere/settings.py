@@ -40,7 +40,8 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware', # Cors должен быть первым
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware', # Для статики
+    'whitenoise.middleware.WhiteNoiseMiddleware', # Для статики и медиа
+    'TaskSphere.middleware.ServeMediaMiddleware',  # Serve uploaded media files
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -118,6 +119,17 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / "media"
 
+# WhiteNoise configuration for serving media files
+WHITENOISE_AUTOREFRESH = True  # Only in development
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_MIMETYPES = {
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+}
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # === REST & JWT ===
@@ -141,7 +153,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 
 
-#EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
+EMAIL_BACKEND = "anymail.backends.resend.EmailBackend"
 ANYMAIL = {
     "RESEND_API_KEY": os.getenv('RESEND_API_KEY'),
 }
