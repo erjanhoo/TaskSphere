@@ -30,6 +30,18 @@ class CreateTaskView(generics.CreateAPIView):
     filter_backends = [DjangoFilterBackend]
     filterset_class = TaskFilter
     
+    def perform_create(self, serializer):
+        """Override to invalidate cache after creating a task."""
+        serializer.save()
+        self._invalidate_task_cache()
+    
+    def _invalidate_task_cache(self):
+        """Invalidate all task list caches for the current user."""
+        user_id = self.request.user.id
+        cache.delete(f'tasks_all_user_{user_id}')
+        cache.delete(f'tasks_active_user_{user_id}')
+        cache.delete(f'tasks_completed_user_{user_id}')
+    
     
 class ListTasksView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
@@ -46,6 +58,45 @@ class ListTasksView(generics.ListAPIView):
             user=self.request.user,
             parent_recurring_task__isnull=True
         ).select_related('category', 'recurrence_rule').prefetch_related('tags', 'subtasks')
+    
+    def list(self, request, *args, **kwargs):
+        """
+        Override list method to implement caching for common filter patterns.
+        Cache keys are based on user ID and filter parameters.
+        """
+        # Get filter parameters
+        is_completed = request.query_params.get('is_completed', None)
+        search = request.query_params.get('search', None)
+        category = request.query_params.get('category', None)
+        tag = request.query_params.get('tag', None)
+        priority = request.query_params.get('priority', None)
+        
+        # Only cache if no complex filters (search, category, tag, priority)
+        # Cache common cases: all tasks, active tasks, completed tasks
+        should_cache = not any([search, category, tag, priority])
+        
+        if should_cache:
+            # Generate cache key based on user and completion status
+            if is_completed is None:
+                cache_key = f'tasks_all_user_{request.user.id}'
+            elif is_completed in ['true', 'True', '1', True]:
+                cache_key = f'tasks_completed_user_{request.user.id}'
+            else:
+                cache_key = f'tasks_active_user_{request.user.id}'
+            
+            # Try to get from cache
+            cached_data = cache.get(cache_key)
+            if cached_data is not None:
+                return Response(cached_data)
+        
+        # If not in cache or shouldn't cache, get from database
+        response = super().list(request, *args, **kwargs)
+        
+        # Cache the response data for 5 minutes
+        if should_cache and response.status_code == 200:
+            cache.set(cache_key, response.data, timeout=300)  # 5 minutes
+        
+        return response
 
 
 
@@ -59,6 +110,18 @@ class UpdateTaskView(generics.UpdateAPIView):
     permission_classes = [IsAuthenticated]
     queryset = Task.objects.all()
     serializer_class = CreateTaskSerializer
+    
+    def perform_update(self, serializer):
+        """Override to invalidate cache after updating a task."""
+        serializer.save()
+        self._invalidate_task_cache()
+    
+    def _invalidate_task_cache(self):
+        """Invalidate all task list caches for the current user."""
+        user_id = self.request.user.id
+        cache.delete(f'tasks_all_user_{user_id}')
+        cache.delete(f'tasks_active_user_{user_id}')
+        cache.delete(f'tasks_completed_user_{user_id}')
 
 
 class ToggleTaskCompletion(APIView):
@@ -87,11 +150,20 @@ class ToggleTaskCompletion(APIView):
         # Invalidate profile cache
         cache_key = f'profile_info_user_{request.user.id}'
         cache.delete(cache_key)
+        
+        # Invalidate task list caches
+        self._invalidate_task_cache(request.user.id)
 
         return Response({
             'message': f'Task is {"completed" if task.is_completed else "reopened"}',
             'karma_change': karma_points if task.is_completed else -karma_points
         })
+    
+    def _invalidate_task_cache(self, user_id):
+        """Invalidate all task list caches for the given user."""
+        cache.delete(f'tasks_all_user_{user_id}')
+        cache.delete(f'tasks_active_user_{user_id}')
+        cache.delete(f'tasks_completed_user_{user_id}')
     
     def calculate_karma_for_task(self, task):
         
@@ -113,6 +185,18 @@ class DeleteTaskView(generics.DestroyAPIView):
     permission_classes = [IsAuthenticated]
     queryset = Task.objects.all()
     serializer_class = TaskDetailSerializer  # Serializer required but not used for deletion
+    
+    def perform_destroy(self, instance):
+        """Override to invalidate cache after deleting a task."""
+        user_id = self.request.user.id
+        instance.delete()
+        self._invalidate_task_cache(user_id)
+    
+    def _invalidate_task_cache(self, user_id):
+        """Invalidate all task list caches for the given user."""
+        cache.delete(f'tasks_all_user_{user_id}')
+        cache.delete(f'tasks_active_user_{user_id}')
+        cache.delete(f'tasks_completed_user_{user_id}')
 
 
 class CalendarTasksView(generics.ListAPIView):
@@ -153,14 +237,24 @@ class SubtaskToggleView(APIView):
         if subtask.is_completed:
             award_karma_to_user(user=subtask.parent_task.user, amount=5, reason='subtask completed')
 
+        # Invalidate task list caches since subtask changes affect task list
+        self._invalidate_task_cache(subtask.parent_task.user.id)
+
         if subtask.parent_task.check_all_subtasks_completion():
             award_karma_to_user(user=subtask.parent_task.user, amount=50, reason=f'All subtasks for {subtask.parent_task} has been completed')
-            return Response({
-                'id': subtask.id,
-                'title': subtask.title,
-                'is_completed': subtask.is_completed,
-                'message': 'Subtask updated successfully'
-            })
+        
+        return Response({
+            'id': subtask.id,
+            'title': subtask.title,
+            'is_completed': subtask.is_completed,
+            'message': 'Subtask updated successfully'
+        })
+    
+    def _invalidate_task_cache(self, user_id):
+        """Invalidate all task list caches for the given user."""
+        cache.delete(f'tasks_all_user_{user_id}')
+        cache.delete(f'tasks_active_user_{user_id}')
+        cache.delete(f'tasks_completed_user_{user_id}')
 """
 Tags & Category CRUD Views
 """
