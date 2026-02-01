@@ -760,6 +760,177 @@ class KarmaHistoryView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+"""
+USER SETTINGS
+"""
+
+class ChangePasswordView(APIView):
+    """Change user password"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        from .serializers import ChangePasswordSerializer
+        
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            
+            # Verify old password
+            if not user.check_password(serializer.validated_data['old_password']):
+                return Response({
+                    'error': 'Old password is incorrect'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Set new password
+            user.set_password(serializer.validated_data['new_password'])
+            user.save()
+            
+            return Response({
+                'message': 'Password changed successfully'
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChangeUsernameView(APIView):
+    """Change username"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        from .serializers import ChangeUsernameSerializer
+        
+        serializer = ChangeUsernameSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            user.username = serializer.validated_data['new_username']
+            user.save()
+            
+            # Invalidate profile cache
+            cache_key = f'profile_info_user_{user.id}'
+            cache.delete(cache_key)
+            
+            return Response({
+                'message': 'Username changed successfully',
+                'new_username': user.username
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ChangeEmailView(APIView):
+    """Change email address"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        from .serializers import ChangeEmailSerializer
+        
+        serializer = ChangeEmailSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            
+            # Verify password for security
+            if not user.check_password(serializer.validated_data['password']):
+                return Response({
+                    'error': 'Password is incorrect'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            user.email = serializer.validated_data['new_email']
+            user.save()
+            
+            # Invalidate profile cache
+            cache_key = f'profile_info_user_{user.id}'
+            cache.delete(cache_key)
+            
+            return Response({
+                'message': 'Email changed successfully',
+                'new_email': user.email
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class AccountInfoView(APIView):
+    """Get account information including creation date"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        user = request.user
+        
+        return Response({
+            'username': user.username,
+            'email': user.email,
+            'account_created': user.registered_at,
+            'theme': user.theme,
+            'language': user.language,
+            'is_2fa_enabled': user.is_2fa_enabled,
+        }, status=status.HTTP_200_OK)
+
+
+class UpdatePreferencesView(APIView):
+    """Update user preferences (theme, language)"""
+    permission_classes = [IsAuthenticated]
+    
+    def patch(self, request):
+        from .serializers import UserPreferencesSerializer
+        
+        serializer = UserPreferencesSerializer(data=request.data, partial=True)
+        if serializer.is_valid():
+            user = request.user
+            
+            if 'theme' in serializer.validated_data:
+                user.theme = serializer.validated_data['theme']
+            
+            if 'language' in serializer.validated_data:
+                user.language = serializer.validated_data['language']
+            
+            user.save()
+            
+            # Invalidate profile cache
+            cache_key = f'profile_info_user_{user.id}'
+            cache.delete(cache_key)
+            
+            return Response({
+                'message': 'Preferences updated successfully',
+                'theme': user.theme,
+                'language': user.language
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DeleteAccountView(APIView):
+    """Delete user account permanently"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        password = request.data.get('password')
+        
+        if not password:
+            return Response({
+                'error': 'Password is required to delete account'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        user = request.user
+        
+        # Verify password
+        if not user.check_password(password):
+            return Response({
+                'error': 'Password is incorrect'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Delete user (this will cascade delete all related data)
+        username = user.username
+        user.delete()
+        
+        # Invalidate caches
+        cache_key = f'profile_info_user_{user.id}'
+        cache.delete(cache_key)
+        
+        return Response({
+            'message': f'Account {username} has been permanently deleted'
+        }, status=status.HTTP_200_OK)
+
+
 
 
 

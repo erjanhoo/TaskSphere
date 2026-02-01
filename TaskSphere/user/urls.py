@@ -13,6 +13,13 @@ from .views import (
     AllBadgesView,
     LeaderboardView,
     KarmaHistoryView,
+    # Settings Views
+    ChangePasswordView,
+    ChangeUsernameView,
+    ChangeEmailView,
+    AccountInfoView,
+    UpdatePreferencesView,
+    DeleteAccountView,
 )
 
 urlpatterns = [
@@ -38,4 +45,12 @@ urlpatterns = [
     path('badges/all/', AllBadgesView.as_view(), name='all-badges'),
     path('leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
     path('karma/history/', KarmaHistoryView.as_view(), name='karma-history'),
+    
+    # Settings
+    path('settings/account/', AccountInfoView.as_view(), name='account-info'),
+    path('settings/change-password/', ChangePasswordView.as_view(), name='change-password'),
+    path('settings/change-username/', ChangeUsernameView.as_view(), name='change-username'),
+    path('settings/change-email/', ChangeEmailView.as_view(), name='change-email'),
+    path('settings/preferences/', UpdatePreferencesView.as_view(), name='update-preferences'),
+    path('settings/delete-account/', DeleteAccountView.as_view(), name='delete-account'),
 ]

@@ -36,6 +36,10 @@ class MyUser(AbstractBaseUser):
     forgot_password_otp = models.CharField(max_length=6, blank=True, null=True)
     forgot_password_otp_created_at = models.DateTimeField(blank=True, null=True)
 
+    # User Preferences
+    theme = models.CharField(max_length=10, choices=[('light', 'Light'), ('dark', 'Dark'), ('system', 'System')], default='system')
+    language = models.CharField(max_length=5, choices=[('en', 'English'), ('ru', 'Russian')], default='en')
+
     is_admin = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)

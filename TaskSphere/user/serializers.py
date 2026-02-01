@@ -83,6 +83,54 @@ class ForgotPasswordOTPVerificationSerializer(serializers.Serializer):
 
 
 """
+USER SETTINGS
+"""
+
+class ChangePasswordSerializer(serializers.Serializer):
+    old_password = serializers.CharField(required=True, write_only=True)
+    new_password = serializers.CharField(required=True, write_only=True, min_length=8)
+    confirm_password = serializers.CharField(required=True, write_only=True)
+    
+    def validate_new_password(self, value):
+        if len(value) < 8:
+            raise serializers.ValidationError('Password must be at least 8 characters long')
+        return value
+    
+    def validate(self, data):
+        if data['new_password'] != data['confirm_password']:
+            raise serializers.ValidationError({
+                'confirm_password': 'Passwords do not match'
+            })
+        return data
+
+
+class ChangeUsernameSerializer(serializers.Serializer):
+    new_username = serializers.CharField(required=True, max_length=100)
+    
+    def validate_new_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError('Username already taken')
+        if len(value) < 3:
+            raise serializers.ValidationError('Username must be at least 3 characters long')
+        return value
+
+
+class ChangeEmailSerializer(serializers.Serializer):
+    new_email = serializers.EmailField(required=True)
+    password = serializers.CharField(required=True, write_only=True)
+    
+    def validate_new_email(self, value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError('Email already exists')
+        return value
+
+
+class UserPreferencesSerializer(serializers.Serializer):
+    theme = serializers.ChoiceField(choices=['light', 'dark', 'system'], required=False)
+    language = serializers.ChoiceField(choices=['en', 'ru'], required=False)
+
+
+"""
 USER INTERFACE
 """
 
