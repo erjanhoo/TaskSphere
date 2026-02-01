@@ -125,6 +125,12 @@ class ChangeEmailSerializer(serializers.Serializer):
         return value
 
 
+class ProfilePictureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ['profile_picture']
+
+
 """
 USER INTERFACE
 """

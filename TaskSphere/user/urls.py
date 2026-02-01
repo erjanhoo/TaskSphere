@@ -18,6 +18,8 @@ from .views import (
     ChangeUsernameView,
     ChangeEmailView,
     AccountInfoView,
+    UploadProfilePictureView,
+    DeleteProfilePictureView,
     DeleteAccountView,
 )
 
@@ -50,5 +52,7 @@ urlpatterns = [
     path('settings/change-password/', ChangePasswordView.as_view(), name='change-password'),
     path('settings/change-username/', ChangeUsernameView.as_view(), name='change-username'),
     path('settings/change-email/', ChangeEmailView.as_view(), name='change-email'),
+    path('settings/profile-picture/', UploadProfilePictureView.as_view(), name='upload-profile-picture'),
+    path('settings/profile-picture/delete/', DeleteProfilePictureView.as_view(), name='delete-profile-picture'),
     path('settings/delete-account/', DeleteAccountView.as_view(), name='delete-account'),
 ]

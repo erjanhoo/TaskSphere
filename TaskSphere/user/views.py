@@ -856,11 +856,79 @@ class AccountInfoView(APIView):
     def get(self, request):
         user = request.user
         
+        profile_picture_url = request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+        
         return Response({
             'username': user.username,
             'email': user.email,
             'account_created': user.registered_at,
             'is_2fa_enabled': user.is_2fa_enabled,
+            'profile_picture': profile_picture_url,
+        }, status=status.HTTP_200_OK)
+
+
+class UploadProfilePictureView(APIView):
+    """Upload or update profile picture"""
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        from .serializers import ProfilePictureSerializer
+        import os
+        
+        user = request.user
+        
+        # Delete old profile picture if exists
+        if user.profile_picture:
+            if os.path.isfile(user.profile_picture.path):
+                os.remove(user.profile_picture.path)
+        
+        serializer = ProfilePictureSerializer(user, data=request.data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            
+            # Invalidate profile cache
+            cache_key = f'profile_info_user_{user.id}'
+            cache.delete(cache_key)
+            
+            profile_picture_url = request.build_absolute_uri(user.profile_picture.url) if user.profile_picture else None
+            
+            return Response({
+                'message': 'Profile picture uploaded successfully',
+                'profile_picture': profile_picture_url
+            }, status=status.HTTP_200_OK)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class DeleteProfilePictureView(APIView):
+    """Delete profile picture"""
+    permission_classes = [IsAuthenticated]
+    
+    def delete(self, request):
+        import os
+        
+        user = request.user
+        
+        if not user.profile_picture:
+            return Response({
+                'error': 'No profile picture to delete'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Delete file from storage
+        if os.path.isfile(user.profile_picture.path):
+            os.remove(user.profile_picture.path)
+        
+        # Remove from database
+        user.profile_picture = None
+        user.save()
+        
+        # Invalidate profile cache
+        cache_key = f'profile_info_user_{user.id}'
+        cache.delete(cache_key)
+        
+        return Response({
+            'message': 'Profile picture deleted successfully'
         }, status=status.HTTP_200_OK)
 
 
