@@ -122,10 +122,11 @@ class CreateTaskSerializer(serializers.ModelSerializer):
 class TasksListSerializer(serializers.ModelSerializer):
 
     subtasks_completion_percentage = serializers.SerializerMethodField()
+    is_overdue = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Task
-        fields = ('id', 'title', 'priority','due_date', 'category', 'tags', 'created_at', 'updated_at', 'subtasks_completion_percentage', 'is_completed', 'description')
+        fields = ('id', 'title', 'priority','due_date', 'category', 'tags', 'created_at', 'updated_at', 'subtasks_completion_percentage', 'is_completed', 'description', 'is_overdue')
 
     # 2. Добавляем метод получения значения (копируем логику из DetailSerializer)
     def get_subtasks_completion_percentage(self, obj):

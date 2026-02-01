@@ -102,6 +102,14 @@ class Task(models.Model):
             if completed_subtasks == total_subtasks:
                 return True
             return False
+        
+        @property
+        def is_overdue(self):
+            """Check if task is overdue (past due_date and not completed)"""
+            from django.utils import timezone
+            if not self.due_date or self.is_completed:
+                return False
+            return timezone.now() > self.due_date
 
         def __str__(self):
              return self.title
