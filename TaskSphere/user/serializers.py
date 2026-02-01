@@ -125,11 +125,6 @@ class ChangeEmailSerializer(serializers.Serializer):
         return value
 
 
-class UserPreferencesSerializer(serializers.Serializer):
-    theme = serializers.ChoiceField(choices=['light', 'dark', 'system'], required=False)
-    language = serializers.ChoiceField(choices=['en', 'ru'], required=False)
-
-
 """
 USER INTERFACE
 """

@@ -860,42 +860,8 @@ class AccountInfoView(APIView):
             'username': user.username,
             'email': user.email,
             'account_created': user.registered_at,
-            'theme': user.theme,
-            'language': user.language,
             'is_2fa_enabled': user.is_2fa_enabled,
         }, status=status.HTTP_200_OK)
-
-
-class UpdatePreferencesView(APIView):
-    """Update user preferences (theme, language)"""
-    permission_classes = [IsAuthenticated]
-    
-    def patch(self, request):
-        from .serializers import UserPreferencesSerializer
-        
-        serializer = UserPreferencesSerializer(data=request.data, partial=True)
-        if serializer.is_valid():
-            user = request.user
-            
-            if 'theme' in serializer.validated_data:
-                user.theme = serializer.validated_data['theme']
-            
-            if 'language' in serializer.validated_data:
-                user.language = serializer.validated_data['language']
-            
-            user.save()
-            
-            # Invalidate profile cache
-            cache_key = f'profile_info_user_{user.id}'
-            cache.delete(cache_key)
-            
-            return Response({
-                'message': 'Preferences updated successfully',
-                'theme': user.theme,
-                'language': user.language
-            }, status=status.HTTP_200_OK)
-        
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DeleteAccountView(APIView):
