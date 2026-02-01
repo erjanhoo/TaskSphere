@@ -115,6 +115,7 @@ class UserRegistrationView(APIView):
                     'user_email': user.email,
                     'refresh_token': str(refresh),
                     'access_token': str(refresh.access_token),
+                    'username':user.username,
                 }, status=status.HTTP_201_CREATED)
 
             else:
@@ -176,7 +177,8 @@ class UserLoginView(APIView):
                 'access': str(refresh.access_token),
                 'user_id': user.id,
                 'user_email': user.email,
-                'message': 'You have successfully logged in'
+                'message': 'You have successfully logged in',
+                'username':user.username,
             }, status=status.HTTP_200_OK)
         
 
