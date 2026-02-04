@@ -60,7 +60,7 @@ class Task(models.Model):
         ]
 
         user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tasks')
-        title = models.CharField(max_length=40)
+        title = models.CharField(max_length=200)
         description = models.TextField(blank=True, null=True)
         is_completed = models.BooleanField(default=False)
         priority = models.CharField(max_length=20, choices=PRIORITY_CHOICES)
